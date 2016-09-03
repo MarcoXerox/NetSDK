@@ -1,21 +1,23 @@
 import enum
 
+# Test suite
+SEAN_YAP   = '100003266237998' # Private friends list
+EUGENE_LEE = '100002538713682' # Generic user
+AMBROSE_YU = '100008209237246' # No vanity
+JASON_HUI  = '665458265'       # Outsider of network
+
 # Data types
 Month = enum.Enum('Month', 'January February March April May June July August September October November December')
 
-class Birthdate(object):
+class Birthdate(str):
     def __init__(self, bstring, year=2000):
-        self.is_nil = bstring is None
-        if not self.is_nil:
-            date, *yr  = bstring.split(', ')
-            month, day = date.split()
-            self.year  = int(yr.pop() if yr else year)
-            self.month = Month[month]
-            self.day   = int(day)
+        date, *yr  = bstring.split(', ')
+        month, day = date.split()
+        self.year  = int(yr.pop() if yr else year)
+        self.month = Month[month]
+        self.day   = int(day)
     def __repr__(self, sep='/'):
-        if self.is_nil:
-            return 'None'
-        return '%d%c%02d%c%02d' % (self.year, sep, self.month.value, sep, self.day)
+        return '%d%s%02d%s%02d' % (self.year, sep, self.month.value, sep, self.day)
     def __eq__(self, other):
         if self.is_nil and other_isnil:
             return True
