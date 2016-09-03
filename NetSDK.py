@@ -49,7 +49,7 @@ class GoogleSession(WebSession):
     def __init__(self, login, passwd):
         self.login  = login
         self.initialize(passwd)
-        if login not in self.access(GMAIL):
+        if login not in self.access(self.GMAIL):
             raise AuthenticationError
 
     @property
