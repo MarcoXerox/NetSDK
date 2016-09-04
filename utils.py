@@ -1,10 +1,9 @@
 import enum
 
 # Test suite
-SEAN_YAP   = '100003266237998' # Private friends list
-EUGENE_LEE = '100002538713682' # Generic user
-AMBROSE_YU = '100008209237246' # No vanity
-JASON_HUI  = '665458265'       # Outsider of network
+CHAR_1 = '100003266237998' # Private friends list
+CHAR_2 = '100002538713682' # Large friend list
+CHAR_3 = '100008209237246' # No vanity
 
 # Data types
 Month = enum.Enum('Month', 'January February March April May June July August September October November December')
