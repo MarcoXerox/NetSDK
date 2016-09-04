@@ -2,6 +2,9 @@
 A open-source library released under GPLv3 for various platforms by web scrapping.
 Currently support Google and Facebook Login. In addition, Facebook Session supports scrapping friends and personal information from a valid FB Account. Note that this is against Facebook Terms of Service and is intended for demonstration purposes only.
 
+### Features
+**NetSDK** refrains from using `selenium` or `mechanize` to scrap info, unlike similar projects such as `fb-hfc`. Hence, **NetSDK** is much simpler and faster by avoiding Javascript and thus AJAX.
+
 ### Installation
 **NetSDK** depends on 
   - Python 3.5 (for async)
