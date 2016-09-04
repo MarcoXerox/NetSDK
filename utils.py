@@ -35,13 +35,3 @@ def list_langs(string):
 
 def drop_two(lst):
     return lst[2:]
-
-# Abstract type to store data
-class VNIDS(object):
-    def __init__(self, isID, string):
-        self.isID = isID
-        self.string = string
-    def __repr__(self):
-        return '<%s> %s' % ('ID' if self.isID else 'VN', self.string)
-    def __eq__(self, other):
-        return self.string == other.string
