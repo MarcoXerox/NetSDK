@@ -30,6 +30,6 @@ def list_langs(string):
 def drop_two(lst):
     return lst[2:]
 
-def slice_into_chunks_and_rems(xs, d):
+def slice_to_chunks_and_rems(xs, d):
     q = len(xs) // d
     return [xs[i*q:i*q+q] for i in range(d)], xs[d*q:]
