@@ -79,6 +79,12 @@ class FacebookSession(WebSession):
         params = {'fb_noscript':'0', 'email':login, 'pass':passwd}
         self.initialize(url_login=url, url_auth=url, params=params) 
 
+    def log_out(self):
+        doc = self.access(self.HOME)
+        start = doc.find('/logout.php')
+        end = doc.find('">', start)
+        self.session.post(self.HOME + doc[start : end])
+
     def profile(self, personID, tab):
         ''' Shortcut to access profile '''
         assert tab in self.TABS
@@ -188,11 +194,14 @@ class FacebookSession(WebSession):
 
 class FacebookHandle(object):
     ''' Provides multisession support.
-        Data of solving 105 vanities, inclusive of
-        time used to login:
-            size=1: 80s
-            size=4: 32s
-            size=8: 35s
+        Data of solving 105 vanities, inclusive of login time:
+            size=01:  80s
+            size=04:  32s
+            size=08:  35s
+        Data of solving 570 vanities, exclusive of login time: 
+            size=04: 120s 
+            size=16:  36s
+            size=32:  32s
         Use appropriate number of threads hence.
     '''
     METHODS = FacebookSession.METHODS + ['add', 'do']
@@ -201,25 +210,41 @@ class FacebookHandle(object):
         ''' Initialize clients '''
 
         self.size = size
-        self.test = FacebookSession(login, passwd)
         self._vn_to_id = dict()
         self._id_to_vn = dict()
 
         try:
+            self.test = FacebookSession(login, passwd)
             soup = BS(self.test.access(self.test.HOME), PARSER)
             self.userID = soup.find('input', attrs={'name' : 'target'})['value']
         except (KeyError, ConnectionError, TypeError):
             raise AuthenticationError
+        
+        if cookies is None or len(cookies) > size:
+            import progressbar
+            bar = progressbar.ProgressBar()
+            self.clients = list()
+            for _ in bar(range(size)):
+                self.clients.append(FacebookSession(login, passwd))
+        else:
+            self.clients = [FacebookSession.from_cookies(c) for c in cookies[:size]]
 
+    def close(self, *exc):
+        ''' Simulate log out of clients '''
+        self.test.log_out()
         import progressbar
-        self.clients = list()
         bar = progressbar.ProgressBar()
-        for i in bar(range(size)):
-            self.clients.append(FacebookSession(login, passwd) if cookies is None else FacebookSession.from_cookies(sc[i]))
+        for client in bar(self.clients):
+            client.log_out()
 
     def add(self, personID, vanity):
+        ''' Cache (personID, vanity) pairs '''
         self._vn_to_id[vanity] = personID
         self._id_to_vn[personID] = vanity
+
+    def export(self):
+        ''' Return (List of (ID, vanity), List of cookie dictionaries) '''
+        return list(_id_to_vn.items()), [requests.utils.dict_from_cookiejar(client.session.cookies) for client in self.clients]
 
     def id_from_vanity(self, vanity):
         try:
@@ -251,7 +276,7 @@ class FacebookHandle(object):
         ''' Map a function to every element of xs and return the result. '''
         if self.size <= 0:
             raise ValueError
-        self.function = FacebookSession.function
+        self.function = function
         chunks, rems  = utils.slice_to_chunks_and_rems(xs, self.size)
         with multiprocessing.Pool(self.size) as p:
-            return p.map(self._map_function_to_client_and_list, zip(clients, chunks)) + [self.test.function(x) for x in rems]
+            return p.map(self._map_function_to_client_and_list, zip(self.clients, chunks)) + [function(self.test, x) for x in rems]
