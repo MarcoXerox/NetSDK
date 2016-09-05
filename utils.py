@@ -1,10 +1,5 @@
 import enum
 
-# Test suite
-CHAR_1 = '100003266237998' # Private friends list
-CHAR_2 = '100002538713682' # Large friend list
-CHAR_3 = '100008209237246' # No vanity
-
 # Data types
 Month = enum.Enum('Month', 'January February March April May June July August September October November December')
 
@@ -34,3 +29,7 @@ def list_langs(string):
 
 def drop_two(lst):
     return lst[2:]
+
+def slice_into_chunks_and_rems(xs, d):
+    q = len(xs) // d
+    return [xs[i*q:i*q+q] for i in range(d)], xs[d*q:]
