@@ -1,9 +1,9 @@
-# NetSDK
+# NetSDK (alpha 0.1.0)
 A open-source library released under GPLv3 for various platforms by web scrapping.
 Currently support Google and Facebook Login. In addition, Facebook Session supports scrapping friends and personal information from a valid FB Account. Note that this is against Facebook Terms of Service and is intended for demonstration purposes only.
 
 ### Features
-**NetSDK** refrains from using `selenium` or `mechanize` to scrap info, unlike similar projects such as `fb-hfc`. Hence, **NetSDK** is much simpler and faster by avoiding Javascript and thus AJAX.
+**NetSDK** refrains from using `selenium` or `mechanize` to scrap info, unlike similar projects such as `fb-hfc`. Hence, **NetSDK** is much simpler and faster by avoiding Javascript and thus AJAX. **NetSDK** also supports well-tested multithreading: it translates Facebook IDs to usernames roughly 0.1s each.
 
 ### Installation
 **NetSDK** depends on 
@@ -23,6 +23,8 @@ Most functions come with **NetSDK** have docstrings. **NetSDK** sessions contain
   - `info`, `likes` and `shares`: personal info
   - `friends`: a list of friends
   - `id_from_vanity`, `vanity_from_id`: translating between vanity (username) and Facebook ID
+  - `log_out`: simulate log out
 `FacebookHandle` supports all methods of `FacebookSession` along with the following:
   - `add`: add more `(personID, vanity)` pair to cache
   - `do`: run a function with many threads
+  - `close`: log out all client sessions
