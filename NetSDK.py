@@ -1,4 +1,4 @@
-import re, requests, imaplib, itertools
+import re, requests, imaplib, itertools, multiprocessing
 import utils
 from bs4 import BeautifulSoup as BS
 PARSER = 'html.parser'
@@ -8,6 +8,8 @@ class AuthenticationError(Exception):
 
 class WebSession(object):
     '''Generic class of a web session'''
+    METHODS = 'initialize access from_cookies'.split()
+
     def initialize(self, url_login, url_auth, params=dict()):
         '''Session initialization'''
         self.session = requests.session()
@@ -18,11 +20,17 @@ class WebSession(object):
         self.session.post(url_auth, data=cred)
 
     def access(self, url, params=dict()):
-        '''Get URL in current session'''
+        ''' Issue a GET request for body of url. 
+            Return None if access failed.
+        '''
         g = self.session.get(url, params=params)
         if g.status_code == 200:
             return g.text
         return None
+
+    @classmethod
+    def from_cookies(cls, cookies):
+        self.session = requests.session(cookies=cookies)
 
 class GoogleSession(WebSession):
     '''Session for Google'''
@@ -55,122 +63,84 @@ class GoogleSession(WebSession):
         return {x[1:-1] for x in addr} 
 
 class FacebookSession(WebSession):
-    '''Session for Facebook. Check attribute METHODS for methods it supports.'''
+    ''' Session for Facebook. Check attribute METHODS for methods it supports.
+        FacebookHandle comes with multisession support.
+    '''
 
     # Constant values of FacebookSession
     HOME = 'https://m.facebook.com/'
     PROF = HOME + 'profile.php' 
     TABS = 'timeline friends info photos likes followers'.split()
     INFO_ATTRS = 'Mobile Address Facebook Birthday Gender Languages Hometown'.split()
-    METHODS = 'add id_from_vanity vanity_from_id async_retrieval friends friends_of_friends info likes shares'.split()
+    METHODS = 'id_from_vanity vanity_from_id friends info likes shares'.split()
 
-    def __init__(self, login, passwd, db=list()):
-        self.login  = login
-        self._vn_to_id = dict()
-        self._id_to_vn = dict()
+    def __init__(self, login, passwd):
         url = self.HOME + 'login.php'
         params = {'fb_noscript':'0', 'email':login, 'pass':passwd}
-        try:
-            self.initialize(url_login=url, url_auth=url, params=params) 
-            soup = BS(self.access(self.HOME), PARSER)
-            self.userID = soup.find('input', attrs={'name' : 'target'})['value']
-            print('Logged in to %s' % self.userID)
-        except (KeyError, ConnectionError, TypeError):
-            raise AuthenticationError
-        for personID, vanity in db:
-            self.add(personID, vanity)
-
-    def add(self, personID, vanity):
-        '''Update cache for id <-> vanity'''
-        self._vn_to_id[vanity] = personID
-        self._id_to_vn[personID] = vanity
+        self.initialize(url_login=url, url_auth=url, params=params) 
 
     def profile(self, personID, tab):
+        ''' Shortcut to access profile '''
         assert tab in self.TABS
         return self.access(self.PROF, params={'id':personID, 'v':tab})
-
-    def _id_from_document(self, doc):
-        '''Primitive method: return personID from a document'''
-        # Do not use Regex as it is slow.
-        start = doc.find('/messages/thread/')
-        end   = doc.find('/"', start)
-        personID = doc[start + 17 : end]
-        return personID
-
-    def _link_from_vanity(self, vanity):
-        return '%s%s?v=following' % (self.HOME, vanity)
 
     def id_from_vanity(self, vanity):
         ''' Return personID from given vanity.
             Significantly slower than its inverse.
         '''
-        if vanity in self._vn_to_id:
-            return self._vn_to_id[vanity]
-        doc = self.access(self._link_from_vanity(vanity))
-        if doc is None:
-            return None
-        personID = self._id_from_document(doc)
-        self.add(personID, vanity)
-        return personID
+        doc = self.access('%s%s?v=following' % (self.HOME, vanity))
+        if doc is None: return None
+        start = doc.find('/messages/thread/')
+        end   = doc.find('/"', start)
+        return doc[start + 17 : end]
     
     def vanity_from_id(self, personID):
         ''' Return vanity from given personID.
             Significantly faster than its inverse.
         '''
-        if personID in self._id_to_vn:
-            return self._id_to_vn[personID]
         DESK_PROF = 'https://www.facebook.com/profile.php'
         resp = self.session.head(DESK_PROF, params={'id': personID})
-        vanity = resp.headers['location'][25:] if resp.is_redirect else None 
-        self.add(personID, vanity)
-        return vanity 
+        return resp.headers['location'][25:] if resp.is_redirect else None 
     
-    def async_retrieval(self, links, function):
-        ''' Note: this function is asynchronous. Therefore the order of
-            operations is indeterminate but is faster. Useful for both
-            computationally and I/O intensive tasks.
-        '''
-        from aiohttp import ClientSession
-        from asyncio import get_event_loop
-        stuffs = list()
-        async def helper(client):
-            for link in links:
-                async with client.get(link) as web_html:
-                    doc = await web_html.text()
-                    stuffs.append(function(doc))
-            await client.close()
-        cookies = requests.utils.dict_from_cookiejar(self.session.cookies)
-        task = helper(ClientSession(cookies=cookies))
-        get_event_loop().run_until_complete(task)
-        return stuffs
-
     def _friends_document_from_tab(self, personID, mutual, startindex):
         '''Primitive method: return HTML from Friends Tab'''
         return self.access(self.PROF, {'v':'friends', 'id':personID, 'mutual':mutual, 'startindex':startindex})
 
-    def _friends_from_tab(self, personID, mutual, startindex):
-        '''Primitive method: return (ids, vns) from Friends Tab'''
-        doc = self._friends_document_from_tab(personID, mutual, startindex)
-        id_regex = '\/profile.php\?id=([0-9]*)\&fref'
-        vn_regex = '\/([a-zA-Z0-9\.]*)\?fref'
-        ids, vns = list(), list()
-        soup = BS(doc, PARSER)
-        for x in soup('a'):
-            s = x.get('href', str())
-            idr = re.match(id_regex, s)
-            vnr = re.match(vn_regex, s)
-            if idr:
-                ids.append(idr.group(1))
-            elif vnr:
-                vns.append(vnr.group(1))
-        return (ids, vns) 
-
     def _number_of_friends_of(self, personID, mutual):
-        '''Primitive method'''
+        ''' Primitive method: return number of friends as counted by Facebook. 
+            Always not less than actual number of friends found. Can be used as estimate.
+        '''
         doc = self._friends_document_from_tab(personID, mutual, 0)
         res = re.search('Friends\s\(([0-9\,]*)\)', doc)
         grp = res.group(1).replace(',','') 
         return int(grp)
+
+    def friends(self, personID, mutual=False):
+        ''' Return friends from personID
+            When mutual is False, friends return
+                public:  all friends of personID
+                private: empty list 
+        '''
+        NFD = 24 # Number of friends displayed if include non-mutuals.
+        FPP = 36 # Friends per page
+        id_regex = '\/profile.php\?id=([0-9]*)\&fref'
+        vn_regex = '\/([a-zA-Z0-9\.]*)\?fref'
+        ids, vns = list(), list()
+        if self.is_private(personID) and not mutual:
+            return list()
+        num = self._number_of_friends_of(personID, mutual)
+        for pg in itertools.chain([0], itertools.count(FPP if mutual else NFD, FPP)):
+            if pg > num:
+                return (ids, vns) 
+            soup = BS(self._friends_document_from_tab(personID, mutual, startindex), PARSER)
+            for x in soup('a'):
+                s = x.get('href', str())
+                idr = re.match(id_regex, s)
+                vnr = re.match(vn_regex, s)
+                if idr:
+                    ids.append(idr.group(1))
+                elif vnr:
+                    vns.append(vnr.group(1))
 
     def info(self, personID):
         ''' Return a dictionary with all elements of INFO_ATTRS as keys.'''
@@ -216,21 +186,72 @@ class FacebookSession(WebSession):
         p, q = self._friends_from_tab(personID, False, 1)
         return not (p or q)
 
-    def friends(self, personID, mutual=False, translate=True):
-        ''' Return friends from personID
-            mutual=False returns all friends of personID, and
-            empty list if is_private(personID)
-            translating all vanities to IDs can be slow.
-        '''
-        NFD = 24 # Number of friends displayed if include non-mutuals.
-        FPP = 36 # Friends per page
-        cids, cvns = list(), list()
-        if self.is_private(personID) and not mutual:
-            return list()
-        num = self._number_of_friends_of(personID, mutual)
-        for pg in itertools.chain([0], itertools.count(FPP if mutual else NFD, FPP)):
-            if pg > num:
-                return cids + [self.id_from_vanity(vn) for vn in cvns] if translate else (cids, cvns) 
-            ids, vns = self._friends_from_tab(personID, mutual=mutual, startindex=pg)
-            cids.extend(ids)
-            cvns.extend(vns)
+class FacebookHandle(object):
+    ''' Provides multisession support.
+        Data of solving 105 vanities, inclusive of
+        time used to login:
+            size=1: 80s
+            size=4: 32s
+            size=8: 35s
+        Use appropriate number of threads hence.
+    '''
+    METHODS = FacebookSession.METHODS + ['add', 'do']
+
+    def __init__(self, login, passwd, cookies=None, size=8):
+        ''' Initialize clients '''
+
+        self.size = size
+        self.test = FacebookSession(login, passwd)
+        self._vn_to_id = dict()
+        self._id_to_vn = dict()
+
+        try:
+            soup = BS(self.test.access(self.test.HOME), PARSER)
+            self.userID = soup.find('input', attrs={'name' : 'target'})['value']
+        except (KeyError, ConnectionError, TypeError):
+            raise AuthenticationError
+
+        import progressbar
+        self.clients = list()
+        bar = progressbar.ProgressBar()
+        for i in bar(range(size)):
+            self.clients.append(FacebookSession(login, passwd) if cookies is None else FacebookSession.from_cookies(sc[i]))
+
+    def add(self, personID, vanity):
+        self._vn_to_id[vanity] = personID
+        self._id_to_vn[personID] = vanity
+
+    def id_from_vanity(self, vanity):
+        try:
+            return self._vn_to_id[vanity]
+        except KeyError:
+            personID = self.test.id_from_vanity(vanity)
+            self.add(personID, vanity)
+            return personID 
+
+    def vanity_from_id(self, personID):
+        try:
+            return self._id_to_vn[personID]
+        except KeyError:
+            vanity = self.test.vanity_from_id(personID)
+            self.add(personID, vanity)
+            return vanity
+
+    friends = lambda self: self.test.friends
+    info    = lambda self: self.test.info
+    links   = lambda self: self.test.links
+    shares  = lambda self: self.test.shares
+
+    def _map_function_to_client_and_list(self, pair):
+        ''' Primitive method. Raise AttributeError if client lacks function. '''
+        client, xs = pair
+        return [self.function(client, x) for x in xs]
+
+    def do(self, function, xs):
+        ''' Map a function to every element of xs and return the result. '''
+        if self.size <= 0:
+            raise ValueError
+        self.function = FacebookSession.function
+        chunks, rems  = utils.slice_to_chunks_and_rems(xs, self.size)
+        with multiprocessing.Pool(self.size) as p:
+            return p.map(self._map_function_to_client_and_list, zip(clients, chunks)) + [self.test.function(x) for x in rems]
