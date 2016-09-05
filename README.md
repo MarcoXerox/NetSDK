@@ -7,9 +7,9 @@ Currently support Google and Facebook Login. In addition, Facebook Session suppo
 
 ### Installation
 **NetSDK** depends on 
-  - Python 3.5 (for async)
+  - Python 3
   - python3-requests
-  - python3-aiohttp
+  - python3-progressbar2 (optional)
 
 If your system do not have `pip3`, refer to this guide: https://docs.python.org/3/installing/
 
@@ -23,4 +23,6 @@ Most functions come with **NetSDK** have docstrings. **NetSDK** sessions contain
   - `info`, `likes` and `shares`: personal info
   - `friends`: a list of friends
   - `id_from_vanity`, `vanity_from_id`: translating between vanity (username) and Facebook ID
-  - `async_retrieval`: friendly interface to finish I/O and computationally intensive tasks quickly.
+`FacebookHandle` supports all methods of `FacebookSession` along with the following:
+  - `add`: add more `(personID, vanity)` pair to cache
+  - `do`: run a function with many threads
