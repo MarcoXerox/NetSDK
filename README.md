@@ -1,6 +1,8 @@
-# NetSDK (alpha 0.1.0)
-A open-source library released under GPLv3 for various platforms by web scrapping.
-Currently support Google and Facebook Login. In addition, Facebook Session supports scrapping friends and personal information from a valid FB Account. Note that this is against Facebook Terms of Service and is intended for demonstration purposes only.
+# NetSDK (alpha 0.2.0)
+A open-source library released under GPLv3 for various platforms by web scrapping. Currently support eClass and Google, Facebook Login.
+  - Facebook Session supports scrapping friends and personal information from a valid FB Account. Note that this is against Facebook Terms of Service and is intended for demonstration purposes only.
+  - Google Session is in active development.
+  - eClass Session enables signing eNotices automatically. (referring to eClass Integrated Platform 2.5)
 
 ### Features
 **NetSDK** refrains from using `selenium` or `mechanize` to scrap info, unlike similar projects such as `fb-hfc`. Hence, **NetSDK** is much simpler and faster by avoiding Javascript and thus AJAX. **NetSDK** also supports well-tested multithreading: it translates Facebook IDs to usernames roughly 0.1s each.
